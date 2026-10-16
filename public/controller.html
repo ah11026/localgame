@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1,
+                 user-scalable=no, viewport-fit=cover">
+  <title>وحدة التحكم</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100dvh;
+      background: #111522; color: white;
+      font: 16px system-ui, sans-serif;
+      touch-action: none; user-select: none;
+      -webkit-user-select: none;
+    }
+    #join { padding: 20px; }
+    #pad {
+      display: none; min-height: 100dvh;
+      padding: 18px; padding-bottom: max(18px, env(safe-area-inset-bottom));
+      align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .cluster { display: grid; gap: 10px; justify-items: center; }
+    .cross {
+      display: grid; grid-template-columns: repeat(3, 58px);
+      grid-template-rows: repeat(3, 58px); gap: 4px;
+    }
+    button {
+      border: 0; color: white; background: #303a51;
+      border-radius: 16px; font-size: 22px;
+      min-width: 54px; min-height: 54px;
+      touch-action: none;
+    }
+    .face { border-radius: 50%; width: 66px; height: 66px; }
+    .b { background: #3159b7; }
+    .a { background: #a72d55; }
+    .center { display: flex; gap: 12px; }
+    #status { color: #aebbd3; }
+  </style>
+</head>
+<body>
+  <section id="join">
+    <h1>وحدة التحكم 🎮</h1>
+    <p>أدخل اسمك ثم انضم إلى الغرفة.</p>
+    <input id="name" maxlength="24" placeholder="اسم اللاعب">
+    <button id="joinButton">انضمام</button>
+    <p id="status">في انتظار الاتصال...</p>
+  </section>
+
+  <main id="pad">
+    <section class="cluster">
+      <strong id="playerLabel">اللاعب</strong>
+      <div class="cross">
+        <span></span>
+        <button data-button="up">▲</button>
+        <span></span>
+        <button data-button="left">◀</button>
+        <button data-button="select">−</button>
+        <button data-button="right">▶</button>
+        <span></span>
+        <button data-button="down">▼</button>
+        <span></span>
+      </div>
+    </section>
+
+    <section class="cluster">
+      <div class="center">
+        <button data-button="l1">L1</button>
+        <button data-button="r1">R1</button>
+      </div>
+      <div class="center">
+        <button data-button="start">Start</button>
+        <button data-button="select">Select</button>
+      </div>
+    </section>
+
+    <section class="cluster">
+      <button class="face b" data-button="b">B</button>
+      <div class="center">
+        <button class="face a" data-button="a">A</button>
+        <button class="face b" data-button="x">X</button>
+      </div>
+      <button class="face a" data-button="y">Y</button>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/js/controller.js"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>صالة الألعاب الجماعية</title>
+  <style>
+    body { margin: 0; padding: 24px; background: #10131c; color: #f4f5fa; font: 17px system-ui, sans-serif; }
+    header, .layout { display: flex; gap: 20px; flex-wrap: wrap; }
+    header { align-items: center; justify-content: space-between; }
+    .panel { background: #1c2230; border-radius: 16px; padding: 18px; box-sizing: border-box; }
+    .layout { align-items: flex-start; }
+    .games { flex: 1; min-width: 220px; }
+    .play { flex: 3; min-width: 300px; }
+    #game { width: 100%; min-height: 380px; background: #000; }
+    button { cursor: pointer; border: 0; border-radius: 10px; padding: 12px 16px; margin: 5px; font: inherit; }
+    #qr { width: 180px; height: 180px; object-fit: contain; }
+    .players { display: flex; flex-wrap: wrap; gap: 8px; }
+    .player { padding: 8px 12px; background: #30394b; border-radius: 9px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🎮 صالة الألعاب</h1>
+      <p>امسح الرمز بهاتفك وانضم إلى اللعب</p>
+    </div>
+    <div class="panel">
+      <strong>رمز الغرفة: </strong><span id="roomCode">...</span>
+      <div><img id="qr" alt="رمز QR للانضمام"></div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel games">
+      <h2>الألعاب</h2>
+      <button data-game="nes">Nintendo NES</button>
+      <button data-game="snes">Super Nintendo</button>
+      <button data-game="n64">Nintendo 64</button>
+      <button data-game="psx">PlayStation 1</button>
+      <button data-game="ps2">PlayStation 2</button>
+      <p id="gameStatus">اختر لعبة لتشغيلها</p>
+    </section>
+
+    <section class="panel play">
+      <h2>الشاشة الرئيسية</h2>
+      <div id="game">
+        <p>ستظهر اللعبة هنا بعد تهيئة المحاكي.</p>
+      </div>
+      <h2>اللاعبون المتصلون</h2>
+      <div id="players" class="players"></div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/js/host.js"></script>
+</body>
+</html>
