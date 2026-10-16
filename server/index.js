@@ -5,20 +5,67 @@ import QRCode from "qrcode";
 import { randomInt, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import morgan from "morgan";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const server = http.createServer(app);
+const appOrigin = (() => {
+  try {
+    return process.env.PUBLIC_BASE_URL ? new URL(process.env.PUBLIC_BASE_URL).origin : "http://localhost:3000";
+  } catch {
+    return "http://localhost:3000";
+  }
+})();
+const allowedOrigins = new Set([
+  appOrigin,
+  "http://localhost:3000",
+  "http://127.0.0.1:3000"
+]);
 
 const io = new Server(server, {
-  cors: { origin: false },
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Origin not allowed by CORS"));
+    },
+    methods: ["GET", "POST"],
+    credentials: true
+  },
   transports: ["websocket", "polling"],
   pingInterval: 10000,
   pingTimeout: 20000,
   maxHttpBufferSize: 16 * 1024
 });
 
-app.use(express.static(path.join(__dirname, "../public")));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(express.json({ limit: "1mb" }));
+app.use("/api", rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false
+}));
+
+app.use(express.static(path.join(__dirname, "../public"), {
+  index: false,
+  maxAge: "1h",
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith(".js") || filePath.endsWith(".css") || filePath.endsWith(".json")) {
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    }
+  }
+}));
 
 const rooms = new Map();
 const socketRooms = new Map();
@@ -29,9 +76,7 @@ const ALLOWED_BUTTONS = new Set([
   "start", "select", "l1", "r1",
   "l2", "r2", "l3", "r3"
 ]);
-
-// مدة الحجز المؤقت للمقعد بعد انقطاع الاتصال (مللي ثانية)
-const PLAYER_GRACE_PERIOD = 2 * 60 * 1000; // 2 minutes
+const PLAYER_GRACE_PERIOD_MS = Number(process.env.PLAYER_GRACE_PERIOD_MS || 120000);
 
 function createRoomCode() {
   let code;
@@ -44,7 +89,7 @@ function createRoomCode() {
 function roomState(room) {
   return {
     code: room.code,
-    players: [...room.tokens.values()].map(p => ({
+    players: [...room.tokens.values()].map((p) => ({
       id: p.id,
       player: p.player,
       name: p.name,
@@ -54,18 +99,21 @@ function roomState(room) {
 }
 
 function allocatePlayerNumber(room) {
-  const used = new Set([...room.tokens.values()].map(m => m.player));
+  const used = new Set([...room.tokens.values()].map((m) => m.player));
   for (let i = 1; i <= MAX_PLAYERS; i++) {
     if (!used.has(i)) return i;
   }
   return null;
 }
 
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, status: "healthy" });
+});
+
 app.get("/api/rooms/:code/qr", async (req, res) => {
   const room = rooms.get(req.params.code);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
-  // PUBLIC_BASE_URL يجب ضبطه في البيئة على عنوان يمكن الوصول إليه من الهاتف
   const base = process.env.PUBLIC_BASE_URL;
   if (!base) {
     return res.status(500).json({
@@ -73,17 +121,21 @@ app.get("/api/rooms/:code/qr", async (req, res) => {
     });
   }
 
-  const joinUrl =
-    `${base}/controller.html?room=${encodeURIComponent(room.code)}`;
+  const joinUrl = `${base}/controller.html?room=${encodeURIComponent(room.code)}`;
 
-  res.json({
-    url: joinUrl,
-    qr: await QRCode.toDataURL(joinUrl)
-  });
+  try {
+    res.json({
+      url: joinUrl,
+      qr: await QRCode.toDataURL(joinUrl)
+    });
+  } catch (error) {
+    console.error("QR generation error:", error);
+    res.status(500).json({ error: "Unable to generate QR" });
+  }
 });
 
-io.on("connection", socket => {
-  socket.on("room:create", ack => {
+io.on("connection", (socket) => {
+  socket.on("room:create", (ack) => {
     const code = createRoomCode();
 
     const room = {
@@ -92,8 +144,7 @@ io.on("connection", socket => {
       players: new Map(),
       tokens: new Map(),
       pressed: new Map(),
-      cleanupTimeouts: new Map(),
-      nextPlayer: 1
+      cleanupTimeouts: new Map()
     };
 
     rooms.set(code, room);
@@ -116,9 +167,9 @@ io.on("connection", socket => {
         return ack?.({ ok: false, error: "هذا التوكن مستخدم حالياً" });
       }
 
-      const t = room.cleanupTimeouts.get(member.token);
-      if (t) {
-        clearTimeout(t);
+      const timer = room.cleanupTimeouts.get(member.token);
+      if (timer) {
+        clearTimeout(timer);
         room.cleanupTimeouts.delete(member.token);
       }
 
@@ -143,7 +194,6 @@ io.on("connection", socket => {
       return;
     }
 
-    // انضمام جديد
     if (room.tokens.size >= MAX_PLAYERS) {
       return ack?.({ ok: false, error: "الغرفة ممتلئة" });
     }
@@ -187,13 +237,10 @@ io.on("connection", socket => {
     }
 
     const token = member.token;
-    const state = room.pressed.get(token);
-    if (!state) {
-      room.pressed.set(token, new Set());
-    }
+    const set = room.pressed.get(token) ?? new Set();
+    room.pressed.set(token, set);
 
-    const set = room.pressed.get(token);
-    if ((set.has(button)) === pressed) {
+    if (set.has(button) === pressed) {
       return ack?.({ ok: true });
     }
 
@@ -233,7 +280,6 @@ io.on("connection", socket => {
 
       member.connected = false;
       member.disconnectedAt = Date.now();
-
       room.players.delete(socket.id);
       io.to(room.hostId).emit("room:state", roomState(room));
 
@@ -245,15 +291,15 @@ io.on("connection", socket => {
         room.pressed.delete(token);
         room.cleanupTimeouts.delete(token);
         io.to(room.hostId).emit("room:state", roomState(room));
-      }, PLAYER_GRACE_PERIOD);
+      }, PLAYER_GRACE_PERIOD_MS);
 
       room.cleanupTimeouts.set(token, cleanup);
     }
 
     if (room.hostId === socket.id) {
-      for (const [tkn, mem] of room.tokens.entries()) {
-        io.sockets.sockets.get(mem.id)?.emit("room:closed");
-        socketRooms.delete(mem.id);
+      for (const member of room.tokens.values()) {
+        io.sockets.sockets.get(member.id)?.emit("room:closed");
+        socketRooms.delete(member.id);
       }
       io.in(code).socketsLeave(code);
       rooms.delete(code);
@@ -261,7 +307,21 @@ io.on("connection", socket => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+app.use((error, _req, res, _next) => {
+  console.error(error);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+const PORT = Number(process.env.PORT || 3000);
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Game server listening on port ${PORT}`);
+});
+
+process.on("SIGTERM", () => {
+  console.log("Received SIGTERM. Shutting down gracefully.");
+  server.close(() => process.exit(0));
 });

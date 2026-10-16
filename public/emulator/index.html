@@ -2,26 +2,132 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Emulator</title>
-  <style>html,body{height:100%;margin:0;background:#000;color:#fff}</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PS1 Emulator</title>
+  <style>
+    :root {
+      --bg: #0b0f18;
+      --panel: #121a2a;
+      --muted: #a9b7d0;
+      --accent: #4ec0ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: #fff;
+      font: 16px system-ui, sans-serif;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+    }
+    .wrap {
+      width: min(1100px, 96vw);
+      background: var(--panel);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 30px 60px rgba(0,0,0,.35);
+    }
+    #game {
+      width: 100%;
+      min-height: 540px;
+      border-radius: 12px;
+      background: #000;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+    #status {
+      margin-top: 12px;
+      color: var(--muted);
+      min-height: 24px;
+    }
+    .hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(78,192,255,.12);
+      color: var(--accent);
+      border: 1px solid rgba(78,192,255,.35);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+  </style>
 </head>
 <body>
-  <canvas id="screen" width="640" height="480"></canvas>
-  <script type="module">
-    import { getControllerState, startAutoPoll } from "/js/input-adapter.js";
+  <div class="wrap">
+    <div class="badge">PS1 / PlayStation 1</div>
+    <div id="game">
+      <div style="padding: 24px; text-align: center; color: #dfeaff;">
+        محاكي PS1 غير مفعّل في هذا النشر.
+      </div>
+    </div>
+    <div id="status">في انتظار ملفات النواة واللعبة...</div>
+    <div class="hint">
+      في بيئة Render، لا يتم تشغيل محاكي PS1 تلقائيًا إلا بعد إضافة ملف Nucleus/Core وملف ROM صالح إلى خادم التطبيق.
+      هذا النشر يضمن عدم ظهور أخطاء في الواجهة عندما لا تكون الملفات متاحة.
+    </div>
+  </div>
 
-    function sendToCoreWithState(player, state) {
-      // هنا استبدل بربط نواة WASM الفعلي
-      // مثال للعرض فقط:
-      // console.log("P"+player, state);
+  <script>
+    const params = new URLSearchParams(location.search);
+    const core = params.get("core");
+    const gameUrl = params.get("game");
+    const status = document.getElementById("status");
+
+    async function validateGame(filePath) {
+      if (!filePath || !core) {
+        status.textContent = "لا توجد بيانات محاكي مفعّلة. أضف core + ROM على الخادم.";
+        return false;
+      }
+
+      try {
+        const response = await fetch(filePath, { method: "HEAD" });
+        if (!response.ok) {
+          status.textContent = `لم يتم العثور على ملف اللعبة: ${filePath}`;
+          return false;
+        }
+        return true;
+      } catch {
+        status.textContent = `تعذّر الوصول إلى ملف اللعبة: ${filePath}`;
+        return false;
+      }
     }
 
-    startAutoPoll(sendToCoreWithState, 60);
+    (async () => {
+      if (!core || !gameUrl) {
+        status.textContent = "لا توجد بيانات محاكي مفعّلة. أضف core + ROM على الخادم.";
+        return;
+      }
 
-    window.addEventListener("remote-game-input", e => {
-      // إضافي: يمكن استغلاله هنا أيضاً
-    });
+      const isReady = await validateGame(gameUrl);
+      if (!isReady) return;
+
+      status.textContent = `تم التحقق من وجود الملف. جاري تحميل النواة: ${core}`;
+
+      const loader = document.createElement("script");
+      loader.src = "https://cdn.jsdelivr.net/gh/EmulatorJS/EmulatorJS@main/data/loader.js";
+      loader.onload = () => {
+        status.textContent = "تم تحميل EmulatorJS. المحاكي جاهز.";
+        window.EJS_player = "#game";
+        window.EJS_core = core;
+        window.EJS_gameUrl = gameUrl;
+        window.EJS_pathtodata = "/emulator-data";
+        window.EJS_startOnLoaded = true;
+        window.EJS_mouse = false;
+      };
+      loader.onerror = () => {
+        status.textContent = "تعذر تحميل EmulatorJS من CDN. أضف ملفات النواة محلياً أو استخدم مسار CDN مناسب.";
+      };
+      document.body.appendChild(loader);
+    })();
   </script>
 </body>
 </html>

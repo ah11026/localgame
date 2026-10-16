@@ -1,48 +1,78 @@
-# airplay-web (prototype)
+# localgame
 
-تشغيل محلي للاختبار:
+نظام ألعاب جماعية عبر الويب، قائم على Node.js + Socket.IO، مع غرف للألعاب، QR code، انضمام هواتف، وتكامل قابل للتوسع مع محاكي WASM/Libretro.
 
-1. انسخ بنية المجلد كما في المستند:
-   - package.json
-   - server/index.js
-   - public/host.html
-   - public/controller.html
-   - public/emulator/index.html
-   - public/js/host.js
-   - public/js/controller.js
-   - public/js/input-adapter.js
+## متطلبات التشغيل
 
-2. ثبّت الاعتماديات:
-   ```bash
-   npm install
-   ```
+- Node.js 18+
+- npm
 
-3. عين PUBLIC_BASE_URL (مهم للـ QR):
-   - إذا تختبر محلياً على نفس الجهاز (فتح الهاتف أيضاً عبر نفس الجهاز): 
-     export PUBLIC_BASE_URL=http://localhost:3000
-   - إذا تريد اختبار مع هاتف على الشبكة المحلية، استخدم عنوان الـ LAN لمضيفك، مثال:
-     export PUBLIC_BASE_URL=http://192.168.1.5:3000
-   - على Windows PowerShell:
-     $env:PUBLIC_BASE_URL = "http://192.168.1.5:3000"
+## تثبيت الاعتماديات
 
-4. شغّل الخادم:
-   ```bash
-   npm run dev
-   ```
-   أو:
-   ```bash
-   npm start
-   ```
+```bash
+npm install
+```
 
-5. افتح واجهة المضيف في المتصفح:
-   http://localhost:3000/host.html
-   - اضغط زر الإنشاء (تُنشأ الغرفة تلقائياً عند اتصال المضيف).
-   - سترى رمز الغرفة ورمز QR (إذا ضبطت PUBLIC_BASE_URL صحيح).
+## متغيرات البيئة
 
-6. افتح وحدة التحكم:
-   - على نفس الجهاز: http://localhost:3000/controller.html?room=XXXX (استبدل XXXX برمز الغرفة)
-   - أو امسح رمز QR بهاتفك (تأكد أن الهاتف يستطيع الوصول إلى PUBLIC_BASE_URL).
+أنشئ ملف `.env` أو اضبط المتغيرات في بيئة التشغيل:
 
-اختبار إعادة الاتصال:
-- انضم كلاعب، ثم أغلق تبويب وحدة التحكم أو افصل الشبكة مؤقتاً.
-- أعد فتح controller.html بنفس الـ room — سيحاول استرجاع التوكن من localStorage وإعادة الربط تلقائياً (ضمن فترة الـ TTL الافتراضية 2 دقيقة).
+```bash
+PORT=3000
+NODE_ENV=development
+PUBLIC_BASE_URL=http://localhost:3000
+PLAYER_GRACE_PERIOD_MS=120000
+```
+
+## التشغيل محلياً
+
+```bash
+npm run dev
+```
+
+أو:
+
+```bash
+npm start
+```
+
+## التشغيل على Render
+
+يعمل المشروع كخدمة Node.js. استخدم إعدادات Render التالية:
+
+- Build Command: `npm install`
+- Start Command: `npm start`
+- Environment Variables:
+  - `NODE_ENV=production`
+  - `PUBLIC_BASE_URL=https://your-app.onrender.com`
+
+يُرجى ملاحظة أن Render يتعيّن عليه تعيين `PUBLIC_BASE_URL` بشكل صحيح لأن الخادم يولد QR links ويستخدمها في واجهة الانضمام.
+
+## ملاحظات مهمة
+
+- لا ترفق ROMs أو نوى PS1/ NES/ SNES في المستودع العام إذا كانت محمية بحقوق النشر.
+- هذا المشروع مصمم ليعمل بحيث تكون الألعاب مفعلة فقط عند توفر ملفات اللعبة والنواة الفعلية.
+- إذا كانت اللعبة غير موجودة، تُعرض رسالة واضحة بدلًا من تعطل الصفحة أو تحميل محاكي غير موجود.
+- جميع المكونات الأساسية في المشروع جاهزة للنشر، مع شاشة المضيف، شاشة الهاتف، ووضع الغرف.
+
+## بنية المشروع
+
+```text
+airplay-web/
+├── package.json
+├── server/
+│   └── index.js
+├── public/
+│   ├── host.html
+│   ├── controller.html
+│   ├── emu/ (اختياري إذا أردت مجلد منفصل)
+│   ├── emulator/
+│   │   └── index.html
+│   ├── games/
+│   │   └── manifest.json
+│   └── js/
+│       ├── host.js
+│       ├── controller.js
+│       └── input-adapter.js
+└── README.md
+```

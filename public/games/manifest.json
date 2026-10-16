@@ -1,11 +1,3 @@
 {
-  "games": [
-    {
-      "id": "ps1-demo",
-      "name": "PlayStation 1 demo",
-      "core": "psx",
-      "path": "/games/roms/ps1/demo.iso",
-      "notes": "الفكرة هنا هي وضع ملف ISO أو CUE/BIN الحقيقي في public/games/roms/ps1/."
-    }
-  ]
+  "games": []
 }
